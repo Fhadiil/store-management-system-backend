@@ -14,8 +14,9 @@ class StoreSerializer(serializers.ModelSerializer):
         fields = '__all__'
         
 class ProductSerializer(serializers.ModelSerializer):
+    store = StoreSerializer(read_only=True)  # Ensure store is serialized properly
     store_id = serializers.PrimaryKeyRelatedField(
-        queryset=Store.objects.all(), source="store", write_only=True
+        queryset=Store.objects.all(), source='store', write_only=True
     )
 
     class Meta:

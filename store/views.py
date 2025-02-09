@@ -1,11 +1,15 @@
 from rest_framework import viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework import status
 from .models import Store, Product, Sale
 from .serializers import StoreSerializer, ProductSerializer, SaleSerializer, UserSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.contrib.auth.models import User
+from django.db.models import Sum
+from django.db import transaction
+
 
 
 # Store ViewSet (standard CRUD for stores)
@@ -64,38 +68,41 @@ class SaleViewSet(viewsets.ModelViewSet):
     serializer_class = SaleSerializer
 
 
-# Custom sale creation endpoint
 @api_view(['POST'])
 def create_sale(request):
-    barcode = request.data.get('barcode')
-    quantity_sold = request.data.get('quantity')
-    
-    # Find the product by barcode
-    try:
-        product = Product.objects.get(barcode=barcode)
-    except Product.DoesNotExist:
-        return Response({'detail': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
-    
-    # Check if there's enough stock
-    if product.stock_quantity < quantity_sold:
-        return Response({'detail': 'Insufficient stock'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Calculate total price
-    total_price = product.price * quantity_sold
-    
-    # Update product stock
-    product.stock_quantity -= quantity_sold
-    product.save()
-    
-    # Record the sale
-    sale = Sale.objects.create(
-        product=product,
-        store=product.store,
-        quantity=quantity_sold,
-        total_price=total_price
-    )
-    
-    return Response({'detail': 'Sale recorded successfully', 'sale_id': sale.id}, status=status.HTTP_201_CREATED)
+    """
+    Handles the creation of a sale, updates the stock quantity,
+    and generates a sale record.
+    """
+    if request.method == 'POST':
+        store_id = request.data.get('store')
+        product_id = request.data.get('product')
+        quantity = request.data.get('quantity')
+
+        # Validate if store and product exist
+        try:
+            store = Store.objects.get(id=store_id)
+            product = Product.objects.get(id=product_id)
+        except (Store.DoesNotExist, Product.DoesNotExist):
+            return Response({"error": "Store or product not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if there's enough stock
+        if product.stock_quantity < quantity:
+            return Response({"error": "Not enough stock."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update the product's stock quantity
+        product.stock_quantity -= quantity
+        product.save()
+
+        # Create the sale record
+        sale = Sale(store=store, product=product, quantity=quantity)
+        sale.save()
+
+        # Serialize the sale data and return the response
+        serializer = SaleSerializer(sale)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
 
 
 # JWT Token Views
@@ -108,3 +115,28 @@ class MyTokenRefreshView(TokenRefreshView):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+
+@api_view(['GET'])
+def dashboard_stats(request):
+    """
+    Returns summary statistics for the dashboard.
+    """
+    total_products = Product.objects.count()
+    total_sales = Sale.objects.count()
+    total_revenue = Sale.objects.aggregate(total_revenue=Sum('total_price'))['total_revenue'] or 0
+    total_stores = Store.objects.count()
+
+    # Get top-selling products (ordered by quantity sold)
+    top_products = Sale.objects.values('product__name').annotate(
+        total_sold=Sum('quantity')
+    ).order_by('-total_sold')[:5]  # Top 5 bestsellers
+
+    return Response({
+        "total_products": total_products,
+        "total_sales": total_sales,
+        "total_revenue": total_revenue,
+        "total_stores": total_stores,
+        "top_products": top_products
+    }, status=status.HTTP_200_OK)
+
