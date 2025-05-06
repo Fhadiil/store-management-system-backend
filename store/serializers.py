@@ -29,3 +29,15 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'email'] 
+
+
+class SalesReportSerializer(serializers.Serializer):
+    product__name = serializers.CharField()
+    product__barcode = serializers.CharField()
+    total_quantity = serializers.IntegerField()
+    total_revenue = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+class InventoryReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'barcode', 'stock_quantity']
