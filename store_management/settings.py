@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-e(_t4a4u9yy6_iu))#attm(q-ul7=7nj$w*c8737ylu%)@u^13
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['https://store-hub-bay.vercel.app/']
+ALLOWED_HOSTS = ['https://store-hub-bay.vercel.app']
 
 
 # Application definition
@@ -135,9 +135,5 @@ REST_FRAMEWORK = {
     ],
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://store-hub-bay.vercel.app",
-]
+CORS_ALLOW_ALL_ORIGINS = True
 
